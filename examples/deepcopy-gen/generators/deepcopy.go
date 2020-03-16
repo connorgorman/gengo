@@ -839,6 +839,7 @@ func (g *genDeepCopy) doStruct(t *types.Type, sw *generator.SnippetWriter) {
 			"kind": ft.Kind,
 			"name": m.Name,
 		}
+
 		dc, dci := deepCopyMethodOrDie(ft), deepCopyIntoMethodOrDie(ft)
 		switch {
 		case dc != nil || dci != nil:
@@ -876,10 +877,11 @@ func (g *genDeepCopy) doStruct(t *types.Type, sw *generator.SnippetWriter) {
 				klog.Fatalf("DeepCopy of %q is unsupported. Instead, use named interfaces with DeepCopy<named-interface> as one of the methods.", uft.Name.Name)
 			}
 			sw.Do("if in.$.name$ != nil {\n", args)
-			// Note: if t.Elem has been an alias "J" of an interface "I" in Go, we will see it
-			// as kind Interface of name "J" here, i.e. generate val.DeepCopyJ(). The golang
-			// parser does not give us the underlying interface name. So we cannot do any better.
-			sw.Do(fmt.Sprintf("out.$.name$ = in.$.name$.DeepCopy%s()\n", uft.Name.Name), args)
+			sw.Do("typ := reflect.TypeOf(out.$.name$).Elem()\n", args)
+			sw.Do("in, out := &in.$.name$, &out.$.name$\n", args)
+			sw.Do("reflect.ValueOf(out).Elem().Set(reflect.New(typ))\n", nil)
+			sw.Do("val := reflect.ValueOf(out).Elem().Elem()\n", nil)
+			sw.Do("reflect.ValueOf(*in).MethodByName(\"DeepCopyInto\").Call([]reflect.Value{val})\n", nil)
 			sw.Do("}\n", nil)
 		default:
 			klog.Fatalf("Hit an unsupported type %v for %v, from %v", uft, ft, t)
